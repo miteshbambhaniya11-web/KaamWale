@@ -77,7 +77,7 @@ function App() {
       {/* Top Utility Bar */}
       <div className="top-utility-bar">
         <div className="utility-left">
-          <span>📍 Hyperlocal Home Services | India</span>
+          <span>📍 Hyperlocal Home Services | India 🇮🇳</span>
         </div>
         <div className="utility-right">
           <span className="utility-link" onClick={() => setRole('vendor')}>
