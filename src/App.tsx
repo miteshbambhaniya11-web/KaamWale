@@ -11,6 +11,7 @@ type AppLang = 'en' | 'hi' | 'gu';
 function App() {
   const [role, setRole] = useState<AppRole>('customer');
   const [lang, setLang] = useState<AppLang>('en');
+  const [syncStatus, setSyncStatus] = useState<'syncing' | 'connected' | 'error'>('connected');
   
   // Auth state
   const [currentCustomer, setCurrentCustomer] = useState<Customer | null>(null);
@@ -26,6 +27,15 @@ function App() {
     KaamWaleDB.init();
     setCurrentCustomer(KaamWaleDB.getCurrentCustomer());
     setCurrentVendor(KaamWaleDB.getCurrentVendor());
+
+    KaamWaleDB.syncStatusListener = (status) => {
+      setSyncStatus(status);
+    };
+
+    KaamWaleDB.setupRealtime(() => {
+      setCurrentCustomer(KaamWaleDB.getCurrentCustomer());
+      setCurrentVendor(KaamWaleDB.getCurrentVendor());
+    });
   }, []);
 
   const triggerToast = (msg: string) => {
@@ -78,6 +88,12 @@ function App() {
       <div className="top-utility-bar">
         <div className="utility-left">
           <span>📍 Hyperlocal Home Services | India 🇮🇳</span>
+          <span className="utility-divider">|</span>
+          <span className={`sync-status ${syncStatus}`} title="Supabase Database Status">
+            {syncStatus === 'syncing' && '🔄 Syncing...'}
+            {syncStatus === 'connected' && '☁️ Cloud Connected'}
+            {syncStatus === 'error' && '⚠️ Sync Offline'}
+          </span>
         </div>
         <div className="utility-right">
           <span className="utility-link" onClick={() => setRole('vendor')}>

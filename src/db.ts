@@ -1,4 +1,18 @@
 // KaamWale Local DB & AI Engine
+import { supabase } from './supabase';
+
+async function syncToSupabase(key: string, data: any) {
+  try {
+    const { error } = await supabase
+      .from('sync_store')
+      .upsert({ key, value: data, updated_at: new Date().toISOString() });
+    if (error) {
+      console.warn(`Supabase sync failed for ${key}:`, error);
+    }
+  } catch (err) {
+    console.error(`Supabase sync exception for ${key}:`, err);
+  }
+}
 
 export interface Customer {
   id: string;
@@ -800,6 +814,67 @@ export const SEED_FRAUD_LOGS: FraudLog[] = [
 
 // LOCAL STORAGE REPO CLASS
 export class KaamWaleDB {
+  static syncStatusListener: ((status: 'syncing' | 'connected' | 'error') => void) | null = null;
+  static isSyncing = false;
+
+  static async fetchFromSupabase() {
+    this.isSyncing = true;
+    if (this.syncStatusListener) this.syncStatusListener('syncing');
+    try {
+      const { data, error } = await supabase
+        .from('sync_store')
+        .select('*');
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        for (const row of data) {
+          if (row.key === 'categories') {
+            localStorage.setItem('kw_categories', JSON.stringify(row.value));
+          } else if (row.key === 'vendors') {
+            localStorage.setItem('kw_vendors', JSON.stringify(row.value));
+          } else if (row.key === 'bookings') {
+            localStorage.setItem('kw_bookings', JSON.stringify(row.value));
+          } else if (row.key === 'fraud') {
+            localStorage.setItem('kw_fraud', JSON.stringify(row.value));
+          } else if (row.key === 'customers') {
+            localStorage.setItem('kw_customers', JSON.stringify(row.value));
+          }
+        }
+      }
+      if (this.syncStatusListener) this.syncStatusListener('connected');
+    } catch (err) {
+      console.error('Failed to pull from Supabase:', err);
+      if (this.syncStatusListener) this.syncStatusListener('error');
+    } finally {
+      this.isSyncing = false;
+    }
+  }
+
+  static setupRealtime(onSyncUpdate: () => void) {
+    supabase
+      .channel('public:sync_store')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sync_store' }, (payload: any) => {
+        const row = payload.new;
+        if (!row || !row.key) return;
+        
+        if (row.key === 'categories') {
+          localStorage.setItem('kw_categories', JSON.stringify(row.value));
+        } else if (row.key === 'vendors') {
+          localStorage.setItem('kw_vendors', JSON.stringify(row.value));
+        } else if (row.key === 'bookings') {
+          localStorage.setItem('kw_bookings', JSON.stringify(row.value));
+        } else if (row.key === 'fraud') {
+          localStorage.setItem('kw_fraud', JSON.stringify(row.value));
+        } else if (row.key === 'customers') {
+          localStorage.setItem('kw_customers', JSON.stringify(row.value));
+        }
+        
+        onSyncUpdate();
+      })
+      .subscribe();
+  }
+
   static init() {
     const cachedCats = localStorage.getItem('kw_categories');
     if (!cachedCats || JSON.parse(cachedCats).length < SERVICE_CATEGORIES.length) {
@@ -817,10 +892,9 @@ export class KaamWaleDB {
     if (!localStorage.getItem('kw_customers')) {
       localStorage.setItem('kw_customers', JSON.stringify(SEED_CUSTOMERS));
     }
-
+    
+    this.fetchFromSupabase();
   }
-
-
 
   // Customers
   static getCustomers(): Customer[] {
@@ -830,6 +904,7 @@ export class KaamWaleDB {
 
   static saveCustomers(customers: Customer[]) {
     localStorage.setItem('kw_customers', JSON.stringify(customers));
+    syncToSupabase('customers', customers);
   }
 
   // Session storage
@@ -867,6 +942,7 @@ export class KaamWaleDB {
   
   static saveCategories(categories: ServiceCategory[]) {
     localStorage.setItem('kw_categories', JSON.stringify(categories));
+    syncToSupabase('categories', categories);
   }
 
   // Vendors
@@ -877,6 +953,7 @@ export class KaamWaleDB {
 
   static saveVendors(vendors: Vendor[]) {
     localStorage.setItem('kw_vendors', JSON.stringify(vendors));
+    syncToSupabase('vendors', vendors);
   }
 
   static updateVendor(vendor: Vendor) {
@@ -898,6 +975,7 @@ export class KaamWaleDB {
 
   static saveBookings(bookings: Booking[]) {
     localStorage.setItem('kw_bookings', JSON.stringify(bookings));
+    syncToSupabase('bookings', bookings);
   }
 
   static updateBooking(booking: Booking) {
@@ -919,6 +997,7 @@ export class KaamWaleDB {
 
   static saveFraudLogs(logs: FraudLog[]) {
     localStorage.setItem('kw_fraud', JSON.stringify(logs));
+    syncToSupabase('fraud', logs);
   }
 
   // AI COST ESTIMATOR
