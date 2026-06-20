@@ -32,10 +32,14 @@ function App() {
       setSyncStatus(status);
     };
 
-    KaamWaleDB.setupRealtime(() => {
+    const unsubscribe = KaamWaleDB.setupRealtime(() => {
       setCurrentCustomer(KaamWaleDB.getCurrentCustomer());
       setCurrentVendor(KaamWaleDB.getCurrentVendor());
     });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const triggerToast = (msg: string) => {

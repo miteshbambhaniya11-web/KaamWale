@@ -852,8 +852,8 @@ export class KaamWaleDB {
   }
 
   static setupRealtime(onSyncUpdate: () => void) {
-    supabase
-      .channel('public:sync_store')
+    const channel = supabase
+      .channel('public:sync_store_kw')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sync_store' }, (payload: any) => {
         const row = payload.new;
         if (!row || !row.key) return;
@@ -871,8 +871,13 @@ export class KaamWaleDB {
         }
         
         onSyncUpdate();
-      })
-      .subscribe();
+      });
+      
+    channel.subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }
 
   static init() {
